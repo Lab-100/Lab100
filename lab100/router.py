@@ -44,7 +44,16 @@ def fallback_order(
     capability: str,
     kind: str | None = None,
     needed: int | float = 1,
+    force: str | None = None,
 ) -> list[Agent]:
+    if force:
+        agent = registry.get(force)
+        if agent is None:
+            raise RouterError(f"нет агента: {force}")
+        if not agent.has_capability(capability):
+            raise RouterError(f"агент {force!r} не владеет компетенцией {capability!r}")
+        return [agent]
+
     candidates = registry.capable(capability, kind)
     alive = [a for a in candidates if tracker.has_quota(a.name, needed)]
     locked = [a for a in candidates if not tracker.has_quota(a.name, needed)]

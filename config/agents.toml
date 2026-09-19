@@ -11,8 +11,17 @@ priority = 50
 kind = "llm"
 base_url = "http://127.0.0.1:11434"
 model = "hermes3:3b"
-capabilities = ["answer", "code", "web-search-notes"]
+capabilities = ["answer", "code"]
 priority = 40
+
+# Резерв под глубокие задачи: медленнее (CPU ~10-15 ток/с), активируется
+# по запросу (--provider ollama-8b) или когда быстрый агент в cooldown.
+[provider.ollama-8b]
+kind = "llm"
+base_url = "http://127.0.0.1:11434"
+model = "hermes3:8b"
+capabilities = ["answer", "code"]
+priority = 20
 
 [provider.gemini]
 kind = "llm"

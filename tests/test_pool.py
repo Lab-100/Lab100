@@ -149,6 +149,23 @@ def test_run_scrape():
     assert res.scraped == "# текст страницы"
 
 
+def test_force_llm_provider():
+    reg, tr = make_pool()
+    orch = PoolOrchestrator(reg, tr)
+    res = orch.run("вопрос", capability="answer", force_llm="ollama")
+    assert res.ok
+    assert res.provider == "ollama"
+    assert res.attempts == ["ollama"]
+
+
+def test_force_unknown_llm_raises():
+    reg, tr = make_pool()
+    orch = PoolOrchestrator(reg, tr)
+    res = orch.run("вопрос", capability="answer", force_llm="nope")
+    assert not res.ok
+    assert "nope" in (res.error or "")
+
+
 # ── конфиг ───────────────────────────────────────────────────────────────────
 def test_config_loads_and_build():
     from lab100.cli import build, load_config

@@ -75,6 +75,9 @@ python -m lab100.cli providers
 # веб-поиск (Firecrawl) + ответ локальным LLM (Ollama)
 python -m lab100.cli ask "вопрос" --limit 5
 
+# принудительно глубоким локальным LLM (hermes3:8b, медленнее на CPU)
+python -m lab100.cli ask "сложный вопрос" --llm ollama-8b
+
 # только поиск, без ответа LLM
 python -m lab100.cli search "вопрос" --limit 5 --no-llm
 
@@ -91,7 +94,10 @@ python -m pytest tests -q
 
 Активные провайдеры (через REST, без SDK):
 - **Firecrawl** — веб-поиск и скрейпинг, ключ `FIRECRAWL_API_KEY`, расход — кредиты.
-- **Ollama** — локальный LLM (hermes3:3b/8b), расход — токены, квота ∞.
+- **Ollama (hermes3:3b)** — быстрая локальная LLM по умолчанию.
+- **Ollama-8b (hermes3:8b)** — локальная LLM-резерв для глубоких задач; принудительно
+  через `--llm ollama-8b`, автоматически — если 3b в cooldown. На CPU ~10–15 ток/с,
+  поэтому не стоит как дефолт (узкое место — 16 ГБ RAM, одна модель в памяти).
 - **Gemini** — подключается автоматически, если в окружении появится `GEMINI_API_KEY`.
 - **OpenAI** — не используется: ключ на этой машине отклоняется по региону
   (`unsupported_country_region_territory`).

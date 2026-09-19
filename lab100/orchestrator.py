@@ -43,8 +43,8 @@ class PoolOrchestrator:
         self.tracker = tracker
 
     # ── выбор исполнителя ────────────────────────────────────────────────────
-    def _pick(self, kind: str, capability: str) -> Agent:
-        for agent in fallback_order(self.registry, self.tracker, capability, kind=kind):
+    def _pick(self, kind: str, capability: str, force: str | None = None) -> Agent:
+        for agent in fallback_order(self.registry, self.tracker, capability, kind=kind, force=force):
             if self._reserve(agent, 1):
                 return agent
         raise RouterError(f"нет доступного агента ({kind}/{capability})")
@@ -56,10 +56,10 @@ class PoolOrchestrator:
         return self.tracker.has_quota(agent.name, amount)
 
     # ── поиск ────────────────────────────────────────────────────────────────
-    def run_search(self, query: str, limit: int = 5, capability: str = "web-search") -> TaskResult:
+    def run_search(self, query: str, limit: int = 5, capability: str = "web-search", force: str | None = None) -> TaskResult:
         result = TaskResult(task=query, capability=capability)
         self.tracker.reset_expired()
-        agent = self._pick(KIND_SEARCH, capability)
+        agent = self._pick(KIND_SEARCH, capability, force)
         adapter: SearchAdapter = agent.adapter
         result.attempts.append(agent.name)
         try:
@@ -74,10 +74,10 @@ class PoolOrchestrator:
         result.metrics.update({"credits": spent, "results": len(found)})
         return result
 
-    def run_scrape(self, url: str, capability: str = "scrape") -> TaskResult:
+    def run_scrape(self, url: str, capability: str = "scrape", force: str | None = None) -> TaskResult:
         result = TaskResult(task=url, capability=capability)
         self.tracker.reset_expired()
-        agent = self._pick(KIND_SEARCH, capability)
+        agent = self._pick(KIND_SEARCH, capability, force)
         adapter: SearchAdapter = agent.adapter
         result.attempts.append(agent.name)
         try:
@@ -100,11 +100,17 @@ class PoolOrchestrator:
         system: str = "",
         context: str = "",
         max_tokens: int = 1200,
+        force: str | None = None,
     ) -> TaskResult:
         result = TaskResult(task=prompt[:120], capability=capability)
         self.tracker.reset_expired()
         full_prompt = (context + "\n\n" + prompt) if context else prompt
-        for agent in fallback_order(self.registry, self.tracker, capability, kind=KIND_LLM):
+        try:
+            order = fallback_order(self.registry, self.tracker, capability, kind=KIND_LLM, force=force)
+        except RouterError as exc:
+            result.error = str(exc)
+            return result
+        for agent in order:
             if not self._reserve(agent, 1):
                 continue
             adapter: LLMAdapter = agent.adapter
@@ -130,13 +136,15 @@ class PoolOrchestrator:
         limit: int = 5,
         with_llm: bool = True,
         system: str = "",
+        force_llm: str | None = None,
+        force_search: str | None = None,
     ) -> TaskResult:
         if capability in LLM_CAPS:
-            return self.run_llm(task, capability=capability, system=system, max_tokens=1400)
+            return self.run_llm(task, capability=capability, system=system, max_tokens=1400, force=force_llm)
         if capability == "scrape":
-            return self.run_scrape(task)
+            return self.run_scrape(task, force=force_search)
         # web-search / deep-research: ищем, затем при желании оформляем ответом LLM
-        result = self.run_search(task, limit=limit, capability=capability)
+        result = self.run_search(task, limit=limit, capability=capability, force=force_search)
         if not result.ok:
             return result
         if with_llm:
@@ -150,6 +158,7 @@ class PoolOrchestrator:
                 system=system,
                 context=context,
                 max_tokens=1000,
+                force=force_llm,
             )
             if llm.ok:
                 result.answer = llm.answer

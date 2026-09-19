@@ -126,25 +126,25 @@ def cmd_providers(orch: PoolOrchestrator, _args: argparse.Namespace) -> int:
 
 
 def cmd_search(orch: PoolOrchestrator, args: argparse.Namespace) -> int:
-    res = orch.run(args.query, capability="web-search", limit=args.limit or 5, with_llm=not args.no_llm)
+    res = orch.run(args.query, capability="web-search", limit=args.limit or 5, with_llm=not args.no_llm, force_llm=args.llm, force_search=args.search)
     print(_fmt_result(res))
     return 0 if res.ok else 1
 
 
 def cmd_ask(orch: PoolOrchestrator, args: argparse.Namespace) -> int:
-    res = orch.run(args.question, capability=args.capability, limit=args.limit or 5, with_llm=True)
+    res = orch.run(args.question, capability=args.capability, limit=args.limit or 5, with_llm=True, force_llm=args.llm, force_search=args.search)
     print(_fmt_result(res))
     return 0 if res.ok else 1
 
 
 def cmd_chat(orch: PoolOrchestrator, args: argparse.Namespace) -> int:
-    res = orch.run(args.text, capability=args.capability or "answer", with_llm=True)
+    res = orch.run(args.text, capability=args.capability or "answer", with_llm=True, force_llm=args.llm)
     print(_fmt_result(res))
     return 0 if res.ok else 1
 
 
 def cmd_scrape(orch: PoolOrchestrator, args: argparse.Namespace) -> int:
-    res = orch.run_scrape(args.url)
+    res = orch.run_scrape(args.url, force=args.search)
     print(_fmt_result(res))
     return 0 if res.ok else 1
 
@@ -162,6 +162,8 @@ def main(argv: list[str] | None = None) -> int:
     p_search.add_argument("query")
     p_search.add_argument("--limit", type=int, default=5)
     p_search.add_argument("--no-llm", action="store_true")
+    p_search.add_argument("--search", metavar="ПРОВАЙДЕР", default=None, help="принудительно search-провайдера")
+    p_search.add_argument("--llm", metavar="ПРОВАЙДЕР", default=None, help="принудительно LLM-провайдера")
     p_search.set_defaults(func=cmd_search)
 
     p_ask = sub.add_parser("ask", help="поиск + ответ LLM")
@@ -169,15 +171,19 @@ def main(argv: list[str] | None = None) -> int:
     p_ask.add_argument("--limit", type=int, default=5)
     p_ask.add_argument("--capability", default="web-search",
                       choices=["web-search", "deep-research", "answer", "code"])
+    p_ask.add_argument("--search", metavar="ПРОВАЙДЕР", default=None, help="принудительно search-провайдера")
+    p_ask.add_argument("--llm", metavar="ПРОВАЙДЕР", default=None, help="принудительно LLM-провайдера")
     p_ask.set_defaults(func=cmd_ask)
 
     p_chat = sub.add_parser("chat", help="только LLM")
     p_chat.add_argument("text")
     p_chat.add_argument("--capability", default="answer", choices=["answer", "code"])
+    p_chat.add_argument("--llm", metavar="ПРОВАЙДЕР", default=None, help="принудительно LLM-провайдера")
     p_chat.set_defaults(func=cmd_chat)
 
     p_scrape = sub.add_parser("scrape", help="извлечь markdown по URL")
     p_scrape.add_argument("url")
+    p_scrape.add_argument("--search", metavar="ПРОВАЙДЕР", default=None, help="принудительно search-провайдера")
     p_scrape.set_defaults(func=cmd_scrape)
 
     args = parser.parse_args(argv)
