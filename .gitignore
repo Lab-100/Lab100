@@ -1,0 +1,9 @@
+# Lab100
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+state.json
+.env
