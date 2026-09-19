@@ -177,3 +177,31 @@ def test_config_loads_and_build():
     orch = build("config/agents.toml")
     assert len(orch.registry.by_kind("search")) >= 1
     assert len(orch.registry.by_kind("llm")) >= 1
+
+
+def test_config_has_case1_local_providers():
+    from lab100.cli import build, load_config
+
+    cfg = load_config("config/agents.toml")
+    for name in ("local-browser", "plain-http"):
+        assert name in cfg["provider"], name
+        assert cfg["provider"][name]["kind"] == "search"
+        assert cfg["quota"][name]["window"] == "forever"
+
+    orch = build("config/agents.toml")
+    names = {a.name for a in orch.registry.by_kind("search")}
+    assert {"local-browser", "plain-http", "firecrawl"} <= names
+
+
+def test_plain_http_decodes_bing_redirect():
+    from lab100.providers.plain_http import PlainHttpScrape
+
+    p = PlainHttpScrape()
+    assert (
+        p._clean_url(
+            "https://www.bing.com/ck/a?!&&p=1&u=a1aHR0cHM6Ly9wdXR0eS5vcmcucnUvZG93bmxvYWQ&ntb=1"
+        )
+        == "https://putty.org.ru/download"
+    )
+    # прямой URL остаётся без изменений
+    assert p._clean_url("https://putty.org.ru/") == "https://putty.org.ru/"

@@ -56,7 +56,9 @@ Lab100/
 │   ├── cli.py                # командный интерфейс (ask/search/chat/scrape)
 │   └── providers/
 │       ├── base.py           # интерфейсы SearchAdapter / LLMAdapter
-│       ├── firecrawl.py      # веб-поиск и скрейпинг (REST v2)
+│       ├── firecrawl.py      # веб-поиск и скрейпинг (REST v2), кейс 2
+│       ├── local_browser.py  # локальный веб-агент через headless-браузер (кейс 1)
+│       ├── plain_http.py     # лёгкий HTTP-скрейпинг/поиск без браузера (кейс 1)
 │       ├── ollama.py         # локальный LLM (REST /api/chat)
 │       └── gemini.py         # Google Gemini (подключается при наличии ключа)
 ├── config/
@@ -81,6 +83,12 @@ python -m lab100.cli ask "сложный вопрос" --llm ollama-8b
 # только поиск, без ответа LLM
 python -m lab100.cli search "вопрос" --limit 5 --no-llm
 
+# Кейс 1: локальные поиск/скрейпинг БЕЗ Firecrawl и ключей (кредиты = 0)
+python -m lab100.cli search "вопрос" --search local-browser --no-llm   # headless-браузер (Wiby/Bing/Wikipedia)
+python -m lab100.cli search "вопрос" --search plain-http --no-llm     # лёгкий HTTP (Bing-HTML)
+python -m lab100.cli scrape "https://site" --search local-browser     # JS-рендеринг
+python -m lab100.cli scrape "https://site" --search plain-http        # статические страницы
+
 # только генерация текста / код
 python -m lab100.cli chat "промпт" --capability answer
 python -m lab100.cli chat "промпт" --capability code
@@ -93,7 +101,13 @@ python -m pytest tests -q
 ```
 
 Активные провайдеры (через REST, без SDK):
-- **Firecrawl** — веб-поиск и скрейпинг, ключ `FIRECRAWL_API_KEY`, расход — кредиты.
+- **Firecrawl** — веб-поиск и скрейпинг, ключ `FIRECRAWL_API_KEY`, расход — кредиты (кейс 2).
+- **local-browser** — локальный веб-агент Кейса 1: поиск и скрейпинг через headless Edge/Chrome
+  (драйвер `driver.mjs`, `127.0.0.1:8123`). Кредиты = 0. Движки: `wiby` (по умолчанию, без капчи),
+  `bing`, `duckduckgo`, `wikipedia`. Скрейпинг разруливает JS и редиректы. Драйвер поднимается
+  автоматически, если доступен `node.exe` (Windows).
+- **plain-http** — самый лёгкий адаптер Кейса 1: поиск также через Bing-HTML (URL из redirect'ов
+  декодируются) и скрейпинг без браузера — только статические страницы, без JS.
 - **Ollama (hermes3:3b)** — быстрая локальная LLM по умолчанию.
 - **Ollama-8b (hermes3:8b)** — локальная LLM-резерв для глубоких задач; принудительно
   через `--llm ollama-8b`, автоматически — если 3b в cooldown. На CPU ~10–15 ток/с,
@@ -101,6 +115,10 @@ python -m pytest tests -q
 - **Gemini** — подключается автоматически, если в окружении появится `GEMINI_API_KEY`.
 - **OpenAI** — не используется: ключ на этой машине отклоняется по региону
   (`unsupported_country_region_territory`).
+
+Приоритет по умолчанию: Firecrawl (кейс 2) > local-browser > plain-http (кейс 1). Если
+Firecrawl в cooldown/нет кредитов — менеджер пула автоматически свайтчнется на локальный
+веб-агент, не тратя ничего. Движок/порт настраиваются в `config/agents.toml`.
 
 Квоты задаются в `config/agents.toml` (кредиты/токены + окно пополнения). Агент,
 у которого квота на исходе или клёв в cooldown после 429, автоматически пропускается;

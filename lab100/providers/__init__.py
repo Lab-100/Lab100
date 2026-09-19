@@ -2,13 +2,23 @@
 
 from .base import AdapterError, SearchAdapter, LLMAdapter, SearchResult
 from .firecrawl import FirecrawlSearch
+from .local_browser import LocalBrowserSearch
 from .ollama import OllamaLLM
 from .gemini import GeminiLLM
+from .plain_http import PlainHttpScrape
 
 
 def build_search_adapter(name: str, config: dict) -> SearchAdapter:
     if name.startswith("firecrawl"):
         return FirecrawlSearch(api_key=config.get("api_key"))
+    if name.startswith("local-browser"):
+        return LocalBrowserSearch(
+            base_url=config.get("base_url"),
+            engine=config.get("engine", "bing"),
+            auto_start=bool(config.get("auto_start", True)),
+        )
+    if name.startswith("plain-http"):
+        return PlainHttpScrape()
     raise RuntimeError(f"нет search-адаптера: {name}")
 
 
@@ -26,6 +36,8 @@ __all__ = [
     "LLMAdapter",
     "SearchResult",
     "FirecrawlSearch",
+    "LocalBrowserSearch",
+    "PlainHttpScrape",
     "OllamaLLM",
     "GeminiLLM",
     "build_search_adapter",

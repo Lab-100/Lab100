@@ -7,6 +7,22 @@ kind = "search"
 capabilities = ["web-search", "deep-research", "scrape"]
 priority = 50
 
+# ── Кейс 1: полностью локальная палитра (без Firecrawl, 0 кредитов) ──────────
+# local-browser — headless Edge/Chrome через драйвер: поиск Bing/DDG + JS-скрейпинг.
+# plain-http — самый лёгкий HTTP-скрейпинг без браузера (статические страницы).
+[provider.local-browser]
+kind = "search"
+base_url = "http://127.0.0.1:8123"
+engine = "wiby"                # wiby | bing | duckduckgo | wikipedia
+auto_start = true
+capabilities = ["web-search", "deep-research", "scrape"]
+priority = 30
+
+[provider.plain-http]
+kind = "search"
+capabilities = ["web-search", "scrape"]
+priority = 20
+
 [provider.ollama]
 kind = "llm"
 base_url = "http://127.0.0.1:11434"
@@ -34,6 +50,12 @@ priority = 60
 [quota.firecrawl]
 window = "month"
 limit = 1000
+
+[quota.local-browser]
+window = "forever"
+
+[quota.plain-http]
+window = "forever"
 
 [quota.ollama]
 window = "forever"
