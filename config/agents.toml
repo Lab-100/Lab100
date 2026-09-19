@@ -1,57 +1,37 @@
-# Конфигурация пула Lab100.
-# Квоты — из кейса 2 (бесплатные тиры провайдеров). Правьте под текущие условия.
+# Конфигурация пула Lab100 (рабочий вариант).
+# kind = search (веб-поиск/скрейпинг, расход — кредиты) | llm (генерация, расход — токены).
+# Провайдер без ключа/доступа автоматически исключается при старте.
 
-[provider.gemini]
-capabilities = ["web-search", "deep-research", "vision"]
-priority = 30
-
-[provider.groq]
-capabilities = ["web-search", "code"]
-priority = 25
-
-[provider.kimi]
-capabilities = ["web-search", "deep-research"]
-priority = 20
-
-[provider.cerebras]
-capabilities = ["code", "web-search"]
-priority = 15
-
-[provider.cloudflare-workers]
-capabilities = ["web-search", "scrape"]
-priority = 10
-
-[provider.pollinations]
-capabilities = ["web-search", "code", "vision"]
-priority = 5
+[provider.firecrawl]
+kind = "search"
+capabilities = ["web-search", "deep-research", "scrape"]
+priority = 50
 
 [provider.ollama]
-capabilities = ["web-search", "code", "scrape", "deep-research", "vision"]
-priority = 1
+kind = "llm"
+base_url = "http://127.0.0.1:11434"
+model = "hermes3:3b"
+capabilities = ["answer", "code", "web-search-notes"]
+priority = 40
 
-[quota.gemini]
-window = "day"
-limit = 1500
+[provider.gemini]
+kind = "llm"
+api_key = ""
+model = "gemini-2.5-flash"
+capabilities = ["answer", "code", "vision"]
+priority = 60
 
-[quota.groq]
-window = "day"
-limit = 1000
-
-[quota.kimi]
+# Квоты: у Firecrawl — кредиты, у LLM — токены; без limit — неограничено.
+[quota.firecrawl]
 window = "month"
 limit = 1000
 
-[quota.cerebras]
-window = "day"
-limit = 1000000
-
-[quota.cloudflare-workers]
-window = "day"
-limit = 10000
-
-# Pollinations и Ollama: limit отсутствует = бесконечная квота.
-[quota.pollinations]
-window = "forever"
-
 [quota.ollama]
 window = "forever"
+
+[quota.gemini]
+window = "day"
+limit = 150000
+
+[pool]
+default_limit = 5

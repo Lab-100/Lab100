@@ -1,4 +1,7 @@
-"""Smoke-тесты пула: registry → tracker → router → orchestrator."""
+"""Тесты: registry → tracker → router → orchestrator (на моках адаптеров).
+
+Не трогают сеть. Живые провайдеры проверяются отдельно через CLI.
+"""
 
 import sys
 from pathlib import Path
@@ -7,89 +10,153 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from lab100.orchestrator import PoolOrchestrator
-from lab100.registry import Agent, Registry
-from lab100.router import RouterError, pick
-from lab100.token_tracker import TokenTracker
-
-from lab100.cli import load_config, build  # noqa: E402
-
-
-def registry_fixture() -> Registry:
-    return Registry(
-        [
-            Agent("gemini", "gemini", frozenset({"web-search", "vision"}), priority=30),
-            Agent("groq", "groq", frozenset({"web-search", "code"}), priority=25),
-            Agent("ollama", "ollama", frozenset({"code"}), priority=1),
-        ]
-    )
+from lab100.orchestrator import PoolOrchestrator  # noqa: E402
+from lab100.providers.base import AdapterError, SearchResult  # noqa: E402
+from lab100.registry import Agent, Registry  # noqa: E402
+from lab100.router import RouterError, fallback_order, pick  # noqa: E402
+from lab100.token_tracker import TokenTracker  # noqa: E402
 
 
-def tracker_fixture() -> TokenTracker:
-    t = TokenTracker()
-    t._quotas["gemini"] = t.ensure("gemini")
-    t._quotas["gemini"].limit = 100
-    t._quotas["groq"] = t.ensure("groq")
-    t._quotas["groq"].limit = 50
-    return t
+# ── мок-адаптеры ─────────────────────────────────────────────────────────────
+class MockSearch:
+    name = "firecrawl"
+    kind = "search"
+
+    def __init__(self, results=None, ads=None, fail=False):
+        self.results = results or [SearchResult(url="https://a.ru", title="A", description="деск")]
+        self.ads = ads or 1
+        self.fail = fail
+
+    def init(self):
+        pass
+
+    def search(self, query, limit=5):
+        if self.fail:
+            raise AdapterError("mock 429")
+        return self.results, self.ads
+
+    def scrape(self, url):
+        if self.fail:
+            raise AdapterError("mock 429")
+        return "# текст страницы", 1
 
 
-def test_pick_by_capability():
-    reg, tr = registry_fixture(), tracker_fixture()
-    a = pick(reg, tr, "web-search")
-    assert a.name == "gemini"
+class MockLLM:
+    kind = "llm"
+
+    def __init__(self, answer="ответ", fail=False):
+        self.answer = answer
+        self.fail = fail
+
+    def init(self):
+        pass
+
+    def chat(self, prompt, system="", max_tokens=1200):
+        if self.fail:
+            raise AdapterError("mock llm 429")
+        return self.answer, {"model": "mock", "tokens": 42, "credits": 0}
 
 
-def test_pick_no_capability():
-    reg, tr = registry_fixture(), tracker_fixture()
-    with pytest.raises(RouterError):
-        pick(reg, tr, "vision_unknown")
+def make_pool():
+    reg = Registry()
+    reg.register(Agent("firecrawl", "search", frozenset({"web-search", "scrape"}), 50, MockSearch()))
+    reg.register(Agent("ollama", "llm", frozenset({"answer", "code"}), 40, MockLLM()))
+    return reg, TokenTracker()
+
+
+# ── registry / router ─────────────────────────────────────────────────────────
+def test_capable_by_kind():
+    reg, _ = make_pool()
+    assert [a.name for a in reg.capable("web-search", "search")] == ["firecrawl"]
+    assert [a.name for a in reg.capable("answer", "llm")] == ["ollama"]
+    assert reg.capable("vision") == []
+
+
+def test_pick_prefers_priority():
+    reg, tr = make_pool()
+    a = pick(reg, tr, "web-search", kind="search")
+    assert a.name == "firecrawl"
 
 
 def test_pick_excludes_locked():
-    reg, tr = registry_fixture(), tracker_fixture()
-    tr.ensure("gemini").used = 95  # выше порога reserve (10%)
-    a = pick(reg, tr, "web-search")
-    assert a.name == "groq"
+    reg, tr = make_pool()
+    tr.ensure("firecrawl").limit = 100
+    tr.ensure("firecrawl").used = 95  # выше порога reserve
+    assert not tr.has_quota("firecrawl")
+    with pytest.raises(RouterError):
+        pick(reg, tr, "web-search", kind="search")
 
 
-def test_cooldown_blocks_provider():
-    reg, tr = registry_fixture(), tracker_fixture()
-    tr.cooldown("groq", 1000)
-    a = pick(reg, tr, "web-search")
-    assert a.name == "gemini"
+def test_fallback_order_puts_locked_last():
+    reg, tr = make_pool()
+    reg.register(Agent("gemini", "llm", frozenset({"answer"}), 60, MockLLM()))
+    tr.ensure("ollama").limit = 100
+    tr.cooldown("ollama", 9999)
+    order = fallback_order(reg, tr, "answer", kind="llm")
+    assert order[0].name == "gemini"
+    assert order[-1].name == "ollama"
 
 
-def test_orchestrator_dry_run():
-    reg, tr = registry_fixture(), tracker_fixture()
+# ── orchestrator ──────────────────────────────────────────────────────────────
+def test_orchestrator_search_records_credits():
+    reg, tr = make_pool()
+    tr.ensure("firecrawl").limit = 100
     orch = PoolOrchestrator(reg, tr)
-    res = orch.run("что нового?", capability="web-search", dry_run=True)
+    res = orch.run_search("вопрос")
     assert res.ok
-    assert res.agent.name == "gemini"
+    assert res.provider == "firecrawl"
+    assert res.sources[0].url == "https://a.ru"
+    assert tr.remaining("firecrawl") == 99
 
 
-def test_orchestrator_fallback_after_exhaustion():
-    reg, tr = registry_fixture(), tracker_fixture()
-
-    class FailGemini:
-        def run(self, provider, prompt):
-            if provider == "gemini":
-                raise RuntimeError("429 rate limit")
-            return "ok-from-groq"
-
-    orch = PoolOrchestrator(reg, tr, FailGemini())
-    res = orch.run("поиск", capability="web-search")
+def test_orchestrator_search_with_llm():
+    reg, tr = make_pool()
+    orch = PoolOrchestrator(reg, tr)
+    res = orch.run("вопрос", capability="web-search", with_llm=True)
     assert res.ok
-    assert res.agent.name == "groq"
-    assert res.attempts == ["gemini", "groq"]
+    assert res.answer == "ответ"
+    assert res.sources and res.sources[0].url == "https://a.ru"
+    assert res.provider == "ollama"
 
 
-def test_config_loads():
+def test_orchestrator_fallback_on_429():
+    reg = Registry()
+    reg.register(Agent("firecrawl", "search", frozenset({"web-search"}), 50, MockSearch(fail=True)))
+    reg.register(Agent("ollama", "llm", frozenset({"answer"}), 40, MockLLM()))
+    tr = TokenTracker()
+    orch = PoolOrchestrator(reg, tr)
+    res = orch.run("вопрос", capability="web-search", with_llm=True)
+    # поиск упал → задача ошибочна, каскад на другой поисковик недоступен
+    assert not res.ok
+    assert "mock 429" in (res.error or "")
+
+
+def test_run_llm_caps():
+    reg, tr = make_pool()
+    orch = PoolOrchestrator(reg, tr)
+    res = orch.run("напиши код", capability="code")
+    assert res.ok
+    assert res.answer == "ответ"
+    res2 = orch.run("ответь", capability="answer")
+    assert res2.ok
+
+
+def test_run_scrape():
+    reg, tr = make_pool()
+    orch = PoolOrchestrator(reg, tr)
+    res = orch.run_scrape("https://a.ru")
+    assert res.ok
+    assert res.scraped == "# текст страницы"
+
+
+# ── конфиг ───────────────────────────────────────────────────────────────────
+def test_config_loads_and_build():
+    from lab100.cli import build, load_config
+
     cfg = load_config("config/agents.toml")
     assert "provider" in cfg and "quota" in cfg
+    assert cfg["provider"]["firecrawl"]["kind"] == "search"
 
-
-def test_build_from_config():
     orch = build("config/agents.toml")
-    assert len(orch.registry) >= 5
-    assert orch.tracker.remaining("gemini") == 1500
+    assert len(orch.registry.by_kind("search")) >= 1
+    assert len(orch.registry.by_kind("llm")) >= 1

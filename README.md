@@ -50,31 +50,58 @@ Lab100/
 ├── lab100/
 │   ├── __init__.py
 │   ├── registry.py           # реестр агентов по компетенциям
-│   ├── token_tracker.py      # квоты и их учёт
-│   ├── router.py             # выбор агента по фильтрам
-│   ├── orchestrator.py       # менеджер пула (точка входа логики)
-│   └── cli.py                # командный интерфейс
+│   ├── token_tracker.py      # квоты и их учёт (кредиты/токены, окна, cooldown)
+│   ├── router.py             # выбор агента по компетенциям и квоте, fallback-каскад
+│   ├── orchestrator.py       # конвейер поиск/ответ/код/скрейпинг
+│   ├── cli.py                # командный интерфейс (ask/search/chat/scrape)
+│   └── providers/
+│       ├── base.py           # интерфейсы SearchAdapter / LLMAdapter
+│       ├── firecrawl.py      # веб-поиск и скрейпинг (REST v2)
+│       ├── ollama.py         # локальный LLM (REST /api/chat)
+│       └── gemini.py         # Google Gemini (подключается при наличии ключа)
 ├── config/
-│   └── agents.toml           # конфигурация агентов и провайдеров
+│   └── agents.toml           # конфигурация агентов, провайдеров и квот
 └── tests/
-    └── test_pool.py          # smoke-тесты
+    └── test_pool.py          # тесты на моках (без сети)
 ```
 
-## Быстрый старт
+## Быстрый старт (рабочий вариант)
 
 ```powershell
-# показать пул и статус квот
+# пул, квоты, активные адаптеры
 python -m lab100.cli status
+python -m lab100.cli providers
 
-# выполнить задачу поиска (сухой прогон, без реальных вызовов API)
-python -m lab100.cli run --task "найти свежие новости про x" --dry-run
+# веб-поиск (Firecrawl) + ответ локальным LLM (Ollama)
+python -m lab100.cli ask "вопрос" --limit 5
 
-# тесты
+# только поиск, без ответа LLM
+python -m lab100.cli search "вопрос" --limit 5 --no-llm
+
+# только генерация текста / код
+python -m lab100.cli chat "промпт" --capability answer
+python -m lab100.cli chat "промпт" --capability code
+
+# извлечение контента страницы в markdown
+python -m lab100.cli scrape "https://example.com"
+
+# тесты (моки, без сети)
 python -m pytest tests -q
 ```
 
-Только стандартная библиотека Python 3.10+ и `tomllib` (или `tomli` на 3.10).
-Реальные HTTP-вызовы провайдеров подключаются адаптерами позже (см. `docs/architecture.md`).
+Активные провайдеры (через REST, без SDK):
+- **Firecrawl** — веб-поиск и скрейпинг, ключ `FIRECRAWL_API_KEY`, расход — кредиты.
+- **Ollama** — локальный LLM (hermes3:3b/8b), расход — токены, квота ∞.
+- **Gemini** — подключается автоматически, если в окружении появится `GEMINI_API_KEY`.
+- **OpenAI** — не используется: ключ на этой машине отклоняется по региону
+  (`unsupported_country_region_territory`).
+
+Квоты задаются в `config/agents.toml` (кредиты/токены + окно пополнения). Агент,
+у которого квота на исходе или клёв в cooldown после 429, автоматически пропускается;
+пул переключается на следующего кандидата по приоритету.
+
+Зависимости: только стандартная библиотека Python 3.10+ (`tomllib`, `urllib`).
+`pytest` — только для тестов.
 
 ## Рабочий цикл
 

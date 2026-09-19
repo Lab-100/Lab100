@@ -1,27 +1,34 @@
 """Реестр агентов.
 
-Агент — запись с компетенциями и политикой квоты:
-- name: уникальный id;
-- provider: к какому пулу ключей относится (и ключ для token_tracker);
-- capabilities: множество компетенций (web-search, deep-research, scrape, code, vision);
-- priority: вес для router (приоритет выбора при равной квоте).
+Агент — запись с доступом к реальному адаптеру:
+- name: уникальный id (совпадает с ключом секции провайдера в конфиге);
+- kind: `search` (веб-поиск/скрейпинг) или `llm` (генерация);
+- capabilities: компетенции агента (web-search, deep-research, scrape, code, vision, answer);
+- priority: вес при выборе (приоритетнее — выше);
+- adapter: объект реального провайдера (SearchAdapter | LLMAdapter).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .providers.base import LLMAdapter, SearchAdapter
+
+KIND_SEARCH = "search"
+KIND_LLM = "llm"
+
 
 class RegistryError(Exception):
     """Некорректный реестр или запрос к нему."""
 
 
-@dataclass(frozen=True)
+@dataclass
 class Agent:
     name: str
-    provider: str
+    kind: str
     capabilities: frozenset[str] = field(default_factory=frozenset)
     priority: int = 0
+    adapter: object | None = None
 
     def has_capability(self, capability: str) -> bool:
         return capability in self.capabilities
@@ -30,6 +37,7 @@ class Agent:
 class Registry:
     def __init__(self, agents: list[Agent] | None = None) -> None:
         self._agents: dict[str, Agent] = {}
+        self._by_kind: dict[str, list[Agent]] = {KIND_SEARCH: [], KIND_LLM: []}
         for agent in agents or []:
             self.register(agent)
 
@@ -37,29 +45,18 @@ class Registry:
         if agent.name in self._agents:
             raise RegistryError(f"дубликат агента: {agent.name}")
         self._agents[agent.name] = agent
-
-    @classmethod
-    def from_config(cls, providers: dict) -> "Registry":
-        """Строит реестр из секций провайдеров TOML-конфига.
-
-        Ожидается формат:
-            [provider.<name>]
-            capabilities = ["web-search", ...]
-            priority = 10
-        Если секции провайдера нет — вместо неё создаётся один агент `provider`.
-        """
-        registry = cls()
-        for provider_name, section in (providers or {}).items():
-            capabilities = frozenset(section.get("capabilities", []))
-            priority = int(section.get("priority", 0))
-            registry.register(Agent(provider_name, provider_name, capabilities, priority))
-        return registry
+        if agent.kind in self._by_kind:
+            self._by_kind[agent.kind].append(agent)
 
     def agents(self) -> list[Agent]:
         return list(self._agents.values())
 
-    def capable(self, capability: str) -> list[Agent]:
-        return [a for a in self._agents.values() if a.has_capability(capability)]
+    def by_kind(self, kind: str) -> list[Agent]:
+        return list(self._by_kind[kind])
+
+    def capable(self, capability: str, kind: str | None = None) -> list[Agent]:
+        pool = self.by_kind(kind) if kind else self.agents()
+        return [a for a in pool if a.has_capability(capability)]
 
     def get(self, name: str) -> Agent | None:
         return self._agents.get(name)

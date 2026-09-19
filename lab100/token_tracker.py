@@ -79,11 +79,15 @@ class TokenTracker:
             return False
         if q.limit is None:
             return True
-        threshold = q.limit * q.reserve_portions
-        return (float(q.limit) - q.used) >= min(needed, threshold) if needed else True
+        threshold = max(float(needed), q.limit * q.reserve_portions)
+        return (float(q.limit) - q.used) >= threshold
 
     def reserve(self, provider: str, amount: float = 1) -> bool:
-        """Проактивно резервирует квоту. Возвращает False, если остатка мало."""
+        """Проактивно резервирует квоту. Возвращает False, если остатка мало.
+
+        Резерв списывается, только если запас не на исходе; для учёта реальных
+        пачек (creditsUsed/tokens) используйте `record`.
+        """
         q = self.ensure(provider)
         if time.time() < q.locked_until:
             return False
@@ -94,10 +98,15 @@ class TokenTracker:
         q.used += int(amount)
         return True
 
-    def record_used(self, provider: str, amount: float) -> None:
+    def record(self, provider: str, amount: float) -> None:
+        """Списывает фактический расход (кредиты/токены) по итогу вызова."""
         q = self.ensure(provider)
-        if q.limit is not None:
-            q.used = min(int(q.used + amount), q.limit)
+        if q.limit is None:
+            return
+        q.used = min(int(q.used + amount), q.limit)
+
+    def record_used(self, provider: str, amount: float) -> None:
+        self.record(provider, amount)
 
     def cooldown(self, provider: str, seconds: float) -> None:
         q = self.ensure(provider)
