@@ -7,6 +7,13 @@ kind = "search"
 capabilities = ["web-search", "deep-research", "scrape"]
 priority = 50
 
+# Exa — семантический веб-поиск (облако, кейс 2): /search с highlights + /contents.
+# Поднимается при наличии EXA_API_KEY.
+[provider.exa]
+kind = "search"
+capabilities = ["web-search", "deep-research", "scrape"]
+priority = 45
+
 # ── Кейс 1: полностью локальная палитра (без Firecrawl, 0 кредитов) ──────────
 # local-browser — headless Edge/Chrome через драйвер: поиск Bing/DDG + JS-скрейпинг.
 # plain-http — самый лёгкий HTTP-скрейпинг без браузера (статические страницы).
@@ -50,6 +57,9 @@ priority = 60
 [quota.firecrawl]
 window = "month"
 limit = 1000
+
+[quota.exa]
+window = "forever"
 
 [quota.local-browser]
 window = "forever"

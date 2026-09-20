@@ -1,6 +1,7 @@
 """Провайдеры Lab100."""
 
 from .base import AdapterError, SearchAdapter, LLMAdapter, SearchResult
+from .exa import ExaSearch
 from .firecrawl import FirecrawlSearch
 from .local_browser import LocalBrowserSearch
 from .ollama import OllamaLLM
@@ -9,6 +10,8 @@ from .plain_http import PlainHttpScrape
 
 
 def build_search_adapter(name: str, config: dict) -> SearchAdapter:
+    if name.startswith("exa"):
+        return ExaSearch(api_key=config.get("api_key"))
     if name.startswith("firecrawl"):
         return FirecrawlSearch(api_key=config.get("api_key"))
     if name.startswith("local-browser"):
@@ -35,6 +38,7 @@ __all__ = [
     "SearchAdapter",
     "LLMAdapter",
     "SearchResult",
+    "ExaSearch",
     "FirecrawlSearch",
     "LocalBrowserSearch",
     "PlainHttpScrape",
