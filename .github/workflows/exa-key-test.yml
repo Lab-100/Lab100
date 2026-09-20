@@ -1,0 +1,23 @@
+name: exa-key-test
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check IP
+        run: curl -s https://api.ipify.org
+      - name: Test Exa search
+        run: |
+          curl -s -X POST "https://api.exa.ai/search" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.EXA_API_KEY }}" \
+            -d '{"query":"latest developments in LLMs","contents":{"highlights":true},"numResults":2}' \
+            | head -c 800
+      - name: Test Exa contents
+        run: |
+          curl -s -X POST "https://api.exa.ai/contents" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.EXA_API_KEY }}" \
+            -d '{"urls":["https://en.wikipedia.org/wiki/PuTTY"],"text":true}' \
+            | head -c 500
