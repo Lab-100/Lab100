@@ -1,0 +1,20 @@
+name: gemini-model-test
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        model: [gemini-2.5-flash, gemini-2.5-pro, gemini-2.0-flash, gemini-2.5-flash-lite]
+    steps:
+      - name: Check models list
+        run: |
+          echo "== model: ${{ matrix.model }} =="
+          curl -s "https://generativelanguage.googleapis.com/v1beta/models?key=${{ secrets.GEMINI_API_KEY }}" | head -c 400
+          echo
+          echo "== try generate =="
+          curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/${{ matrix.model }}:generateContent" \
+            -H "Content-Type: application/json" \
+            -d '{"contents":[{"parts":[{"text":"say ok"}]}]}' \
+            "?key=${{ secrets.GEMINI_API_KEY }}" | head -c 300
