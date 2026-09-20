@@ -59,37 +59,53 @@ class PoolOrchestrator:
     def run_search(self, query: str, limit: int = 5, capability: str = "web-search", force: str | None = None) -> TaskResult:
         result = TaskResult(task=query, capability=capability)
         self.tracker.reset_expired()
-        agent = self._pick(KIND_SEARCH, capability, force)
-        adapter: SearchAdapter = agent.adapter
-        result.attempts.append(agent.name)
         try:
-            found, spent = adapter.search(query, limit)
-        except AdapterError as exc:
-            self._on_failure(agent, exc, result)
+            order = fallback_order(self.registry, self.tracker, capability, kind=KIND_SEARCH, force=force)
+        except RouterError as exc:
+            result.error = str(exc)
             return result
-        self.tracker.record(agent.name, spent)
-        result.sources = found
-        result.provider = agent.name
-        result.ok = True
-        result.metrics.update({"credits": spent, "results": len(found)})
+        for agent in order:
+            if not self._reserve(agent, 1):
+                continue
+            adapter: SearchAdapter = agent.adapter
+            result.attempts.append(agent.name)
+            try:
+                found, spent = adapter.search(query, limit)
+            except AdapterError as exc:
+                self._on_failure(agent, exc, result)
+                continue
+            self.tracker.record(agent.name, spent)
+            result.sources = found
+            result.provider = agent.name
+            result.ok = True
+            result.metrics.update({"credits": spent, "results": len(found)})
+            return result
         return result
 
     def run_scrape(self, url: str, capability: str = "scrape", force: str | None = None) -> TaskResult:
         result = TaskResult(task=url, capability=capability)
         self.tracker.reset_expired()
-        agent = self._pick(KIND_SEARCH, capability, force)
-        adapter: SearchAdapter = agent.adapter
-        result.attempts.append(agent.name)
         try:
-            markdown, spent = adapter.scrape(url)
-        except AdapterError as exc:
-            self._on_failure(agent, exc, result)
+            order = fallback_order(self.registry, self.tracker, capability, kind=KIND_SEARCH, force=force)
+        except RouterError as exc:
+            result.error = str(exc)
             return result
-        self.tracker.record(agent.name, spent)
-        result.scraped = markdown
-        result.provider = agent.name
-        result.ok = True
-        result.metrics.update({"credits": spent, "chars": len(markdown)})
+        for agent in order:
+            if not self._reserve(agent, 1):
+                continue
+            adapter: SearchAdapter = agent.adapter
+            result.attempts.append(agent.name)
+            try:
+                markdown, spent = adapter.scrape(url)
+            except AdapterError as exc:
+                self._on_failure(agent, exc, result)
+                continue
+            self.tracker.record(agent.name, spent)
+            result.scraped = markdown
+            result.provider = agent.name
+            result.ok = True
+            result.metrics.update({"credits": spent, "chars": len(markdown)})
+            return result
         return result
 
     # ── генерация через LLM ──────────────────────────────────────────────────

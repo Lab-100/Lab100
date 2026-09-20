@@ -20,7 +20,7 @@ GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models"
 class GeminiLLM(LLMAdapter):
     name = "gemini"
 
-    def __init__(self, api_key: str | None = None, default_model: str = "gemini-2.5-flash") -> None:
+    def __init__(self, api_key: str | None = None, default_model: str = "gemini-3.6-flash") -> None:
         self._api_key = api_key
         self.default_model = default_model
 

@@ -131,6 +131,19 @@ def test_orchestrator_fallback_on_429():
     assert "mock 429" in (res.error or "")
 
 
+def test_orchestrator_search_cascades_to_next_provider():
+    reg = Registry()
+    reg.register(Agent("exa", "search", frozenset({"web-search"}), 45, MockSearch(fail=True)))
+    reg.register(Agent("local", "search", frozenset({"web-search"}), 30, MockSearch(ads=0)))
+    tr = TokenTracker()
+    orch = PoolOrchestrator(reg, tr)
+    res = orch.run_search("вопрос")
+    assert res.ok
+    assert res.provider == "local"
+    assert res.attempts == ["exa", "local"]
+    assert res.sources[0].url == "https://a.ru"
+
+
 def test_run_llm_caps():
     reg, tr = make_pool()
     orch = PoolOrchestrator(reg, tr)
