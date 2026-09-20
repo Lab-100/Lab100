@@ -11,10 +11,12 @@ jobs:
       - name: Check models list
         run: |
           echo "== model: ${{ matrix.model }} =="
-          curl -s "https://generativelanguage.googleapis.com/v1beta/models?key=${{ secrets.GEMINI_API_KEY }}" | head -c 400
+          curl -s -G "https://generativelanguage.googleapis.com/v1beta/models" \
+            --data-urlencode "key=${{ secrets.GEMINI_API_KEY }}" | head -c 400
           echo
           echo "== try generate =="
-          curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/${{ matrix.model }}:generateContent" \
+          curl -s -G "https://generativelanguage.googleapis.com/v1beta/models/${{ matrix.model }}:generateContent" \
+            --data-urlencode "key=${{ secrets.GEMINI_API_KEY }}" \
             -H "Content-Type: application/json" \
-            -d '{"contents":[{"parts":[{"text":"say ok"}]}]}' \
-            "?key=${{ secrets.GEMINI_API_KEY }}" | head -c 300
+            -d '{"contents":[{"parts":[{"text":"say ok"}]}]}' | head -c 400
+          echo
