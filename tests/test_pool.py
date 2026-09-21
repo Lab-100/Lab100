@@ -252,20 +252,19 @@ def test_docker_agent_adapter_uses_docker_cli(monkeypatch):
 
 
 def test_docker_agent_init_raises_without_plugin(monkeypatch):
-    import subprocess as _sp
-
-    from lab100.providers.docker_agent import DockerAgentLLM
-
-    class FakeProcFail:
-        returncode = 127
-        stdout = b""
-        stderr = b"unknown command agent"
-
-    monkeypatch.setattr(_sp, "run", lambda *a, **k: FakeProcFail())
-    adapter = DockerAgentLLM(agent_file=r"C:\x\gordon.yaml", docker_exe="docker")
     import pytest as _pytest
 
+    from lab100.providers import docker_agent as da
+    from lab100.providers.docker_agent import DockerAgentLLM
+
+    monkeypatch.setattr(da, "_has_agent_plugin", lambda exe: False)
+    adapter = DockerAgentLLM(agent_file=r"C:\x\gordon.yaml", docker_exe="docker")
     with _pytest.raises(RuntimeError, match="плагин"):
+        adapter.init()
+
+    monkeypatch.setattr(da, "_has_agent_plugin", lambda exe: True)
+    adapter = DockerAgentLLM(agent_file=r"C:\x\gordon.yaml", docker_exe="docker")
+    with _pytest.raises(RuntimeError, match="конфиг"):
         adapter.init()
 
 
