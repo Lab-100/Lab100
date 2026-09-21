@@ -1,6 +1,7 @@
 """Провайдеры Lab100."""
 
 from .base import AdapterError, SearchAdapter, LLMAdapter, SearchResult
+from .docker_agent import DockerAgentLLM
 from .exa import ExaSearch
 from .firecrawl import FirecrawlSearch
 from .local_browser import LocalBrowserSearch
@@ -30,6 +31,13 @@ def build_llm_adapter(name: str, config: dict) -> LLMAdapter:
         return OllamaLLM(base_url=config.get("base_url"), default_model=config.get("model"))
     if name.startswith("gemini"):
         return GeminiLLM(api_key=config.get("api_key"), default_model=config.get("model"))
+    if name.startswith("docker-agent"):
+        return DockerAgentLLM(
+            agent_file=config.get("agent_file"),
+            model=config.get("model", "local"),
+            docker_exe=config.get("docker_exe"),
+            timeout_s=int(config.get("timeout_s", 600)),
+        )
     raise RuntimeError(f"нет llm-адаптера: {name}")
 
 
@@ -44,6 +52,7 @@ __all__ = [
     "PlainHttpScrape",
     "OllamaLLM",
     "GeminiLLM",
+    "DockerAgentLLM",
     "build_search_adapter",
     "build_llm_adapter",
 ]

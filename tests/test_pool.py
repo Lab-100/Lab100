@@ -203,7 +203,12 @@ def test_config_has_case1_local_providers():
 
     orch = build("config/agents.toml")
     names = {a.name for a in orch.registry.by_kind("search")}
-    assert {"local-browser", "plain-http", "firecrawl"} <= names
+    notes = getattr(orch, "_notes", [])
+    # local-browser/plain-http обязательны в конфиге; в пуле local-browser может быть
+    # корректно исключён, если node-драйвер (127.0.0.1:8123) не поднят в окружении.
+    assert "plain-http" in names
+    assert "firecrawl" in names
+    assert "local-browser" in names or any("local-browser" in n for n in notes)
 
 
 def test_plain_http_decodes_bing_redirect():
@@ -218,3 +223,62 @@ def test_plain_http_decodes_bing_redirect():
     )
     # прямой URL остаётся без изменений
     assert p._clean_url("https://putty.org.ru/") == "https://putty.org.ru/"
+
+
+# ── docker-agent (Гордон как член группы перебора LLM) ───────────────────────
+def test_docker_agent_adapter_uses_docker_cli(monkeypatch):
+    from lab100.providers.docker_agent import DockerAgentLLM
+
+    called = {}
+
+    class FakeProc:
+        returncode = 0
+        stdout = b"\xd0\xbe\xd1\x82\xd0\xb2\xd0\xb5\xd1\x82\x20\xd0\xb3\xd0\xbe\xd1\x80\xd0\xb4\xd0\xbe\xd0\xbd\xd0\xb0"  # «ответ гордона»
+        stderr = b""
+
+    def fake_run(cmd, capture_output=True, timeout=1):
+        called["cmd"] = cmd
+        return FakeProc()
+
+    monkeypatch.setattr("lab100.providers.docker_agent.subprocess.run", fake_run)
+    adapter = DockerAgentLLM(agent_file=r"C:\x\gordon.yaml", model="local", docker_exe="docker")
+    adapter.init = lambda: None  # наличие плагина проверяется вызовом docker (не в unit-тесте)
+    answer, metrics = adapter.chat("вопрос")
+    assert answer == "ответ гордона"
+    assert called["cmd"][1] == "agent"
+    assert called["cmd"][3] == r"C:\x\gordon.yaml"
+    assert called["cmd"][5] == "local"
+    assert metrics["credits"] == 0
+
+
+def test_docker_agent_init_raises_without_plugin(monkeypatch):
+    import subprocess as _sp
+
+    from lab100.providers.docker_agent import DockerAgentLLM
+
+    class FakeProcFail:
+        returncode = 127
+        stdout = b""
+        stderr = b"unknown command agent"
+
+    monkeypatch.setattr(_sp, "run", lambda *a, **k: FakeProcFail())
+    adapter = DockerAgentLLM(agent_file=r"C:\x\gordon.yaml", docker_exe="docker")
+    import pytest as _pytest
+
+    with _pytest.raises(RuntimeError, match="плагин"):
+        adapter.init()
+
+
+def test_docker_agent_in_config_and_pool_build():
+    from lab100.cli import build, load_config
+
+    cfg = load_config("config/agents.toml")
+    assert "docker-agent" in cfg["provider"]
+    assert cfg["provider"]["docker-agent"]["kind"] == "llm"
+    assert cfg["quota"]["docker-agent"]["window"] == "forever"
+
+    orch = build("config/agents.toml")
+    # адаптер присутствует в пуле ИЛИ корректно исключён (плагин docker agent может быть не установлен):
+    names = {a.name for a in orch.registry.by_kind("llm")}
+    notes = getattr(orch, "_notes", [])
+    assert "docker-agent" in names or any("docker-agent" in n for n in notes)

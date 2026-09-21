@@ -53,6 +53,17 @@ model = "gemini-3.6-flash"
 capabilities = ["answer", "code", "vision"]
 priority = 60
 
+# Docker Agent (Гордон) — бесплатный локальный LLM через Model Runner (smollm2),
+# член группы перебора LLM. Поднимается только если установлен плагин `docker agent`
+# (gordon-setup.ps1) и есть ~\.agents\gordon.yaml; иначе отключается с пояснением.
+[provider.docker-agent]
+kind = "llm"
+agent_file = ""
+model = "local"                # local = Docker Model Runner (бесплатно)
+capabilities = ["answer", "code"]
+priority = 10                 # ниже ollama-8b: медленный резерв без ключей
+timeout_s = 600
+
 # Квоты: у Firecrawl — кредиты, у LLM — токены; без limit — неограничено.
 [quota.firecrawl]
 window = "month"
@@ -73,6 +84,9 @@ window = "forever"
 [quota.gemini]
 window = "day"
 limit = 150000
+
+[quota.docker-agent]
+window = "forever"
 
 [pool]
 default_limit = 5
