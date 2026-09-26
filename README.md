@@ -13,6 +13,7 @@
 - **Exa** — семантический веб-поиск (`/search` с highlights + `/contents`), ключ `EXA_API_KEY`, расход — кредиты. Подключается при наличии ключа, приоритет 45 (ниже Firecrawl).
 - **local-browser** — локальный веб-агент Кейса 1: поиск и скрейпинг через headless Edge/Chrome (драйвер `driver.mjs`, `127.0.0.1:8123`), кредиты = 0. Движки: `wiby` (по умолчанию, без капчи), `bing`, `duckduckgo`, `wikipedia`. Скрейпинг разруливает JS и редиректы. Драйвер поднимается автоматически, если доступен `node.exe`.
 - **plain-http** — самый лёгкий адаптер Кейса 1: поиск через Bing-HTML (URL из редиректов декодируются) и скрейпинг без браузера — только статические страницы, без JS. Кредиты = 0.
+- **Yandex Search API** — веб-поиск по базе Яндекса (REST `POST /v2/web/search`, ответ `rawData` = base64/XML), только `web-search`, без скрейпинга. Ключ `YANDEX_SEARCH_API_KEY` (или `YANDEX_SEARCH_IAM_TOKEN` для сервисного аккаунта), `folderId` — `YANDEX_SEARCH_FOLDER_ID`. Платный (тарификация по запросам), поэтому приоритет 15 — последний в каскаде, месячный предохранитель 500 запросов. Полезен как источник по РУ-интернету; принудительно — `--search yandex-search`.
 - **Ollama (hermes3:3b)** — быстрая локальная LLM по умолчанию (REST `/api/chat`, 0 кредитов).
 - **Ollama-8b (hermes3:8b)** — локальная LLM-резерв для глубоких задач; принудительно через `--llm ollama-8b`, автоматически — если 3b в cooldown. На CPU ~10–15 ток/с, поэтому не дефолт.
 - **Gemini** — модель `gemini-3.6-flash` (актуальная для новых пользователей), ключ `GEMINI_API_KEY`, квота 150 000 токенов/день. Подключается автоматически при ключе.
@@ -55,12 +56,14 @@ Lab100/
 │       ├── exa.py            # семантический поиск Exa (/search + /contents)
 │       ├── local_browser.py  # локальный веб-агент через headless-браузер (Кейс 1)
 │       ├── plain_http.py     # лёгкий HTTP-скрейпинг/поиск без браузера (Кейс 1)
+│       ├── yandex_search.py  # веб-поиск по базе Яндекса (REST v2, base64+XML)
 │       ├── ollama.py         # локальная LLM (REST /api/chat)
 │       └── gemini.py         # Google Gemini
 ├── config/
 │   └── agents.toml           # конфигурация агентов, провайдеров и квот
 └── tests/
-    └── test_pool.py          # тесты на моках (без сети)
+    ├── test_pool.py          # тесты на моках (без сети)
+    └── test_yandex_search.py # тесты Yandex Search API (сеть замокана)
 ```
 
 ## Быстрый старт (рабочий вариант)
@@ -70,7 +73,7 @@ Lab100/
 python -m lab100.cli status
 python -m lab100.cli providers
 
-# веб-поиск (каскад: Firecrawl/Exa → local-browser → plain-http) + ответ локальным LLM
+# веб-поиск (каскад: Firecrawl/Exa → local-browser → plain-http → yandex-search) + ответ локальным LLM
 python -m lab100.cli ask "вопрос" --limit 5
 
 # принудительно глубоким локальным LLM (hermes3:8b, медленнее на CPU)
@@ -85,6 +88,9 @@ python -m lab100.cli search "вопрос" --search plain-http --no-llm     # Bi
 python -m lab100.cli scrape "https://site" --search local-browser     # JS-рендеринг
 python -m lab100.cli scrape "https://site" --search plain-http        # статические стр.
 
+# принудительно базой Яндекса (нужны YANDEX_SEARCH_API_KEY и YANDEX_SEARCH_FOLDER_ID; 1 запрос = 1 кредит)
+python -m lab100.cli search "русскоязычный запрос" --search yandex-search --no-llm
+
 # только генерация текста / кода
 python -m lab100.cli chat "промпт" --capability answer
 python -m lab100.cli chat "промпт" --capability code
@@ -96,11 +102,25 @@ python -m lab100.cli scrape "https://example.com"
 python -m pytest tests -q
 ```
 
-Приоритет по умолчанию: Firecrawl → Exa → local-browser → plain-http (поиск);
+Приоритет по умолчанию: Firecrawl → Exa → local-browser → plain-http → yandex-search (поиск);
 ollama (3b) → ollama-8b → gemini (LLM). Если провайдер блокируется сетью
 (Exa/Gemini), лимит исчерпан или он в cooldown — менеджер автоматически переходит
 к следующему кандидату, кредиты не тратятся зря. Движки/порт/квоты настраиваются
 в `config/agents.toml`.
+
+### Yandex Search API (платный резерв)
+
+```powershell
+# ключ кабинета (роль search-api.user / executor на сервисный аккаунт)
+$env:YANDEX_SEARCH_API_KEY = "AQVN..."
+$env:YANDEX_SEARCH_FOLDER_ID = "b1g..."   # нужен для сервисного аккаунта
+# либо IAM-токен сервисного аккаунта вместо API-ключа
+$env:YANDEX_SEARCH_IAM_TOKEN = "t1...."
+```
+
+Ограничения сервиса, которые учитывает адаптер: запрос ≤ 400 символов и ≤ 40 слов,
+`groupsOnPage` 1..100, `maxPassages` 1..5, плоская группировка по домену
+(`GROUP_MODE_FLAT`). Скрейпинга нет — агент отдаёт только `web-search`.
 
 Квоты задаются в `config/agents.toml` (кредиты/токены + окно пополнения). Агент,
 у которого квота на исходе или ключ в cooldown после 429, автоматически пропускается;

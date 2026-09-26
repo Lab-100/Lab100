@@ -80,7 +80,7 @@
 | Учёт квот по окнам | token_tracker | Orquesta-IA (state/ledger.jsonl) |
 | Дашборд | (позже) | Mission Control (self-hosted, SQLite) |
 
-## Адаптеры провайдеров (TODO, подключение позже)
+## Адаптеры провайдеров
 
 Каждый провайдер подключается через интерфейс `ProviderAdapter`:
 - `name`, `check_quota()` → остаток;
@@ -89,6 +89,37 @@
 
 Список адаптеров для реализации: gemini, groq, kimi, cerebras, cloudflare-workers,
 pollinations (без ключа), ollama (локальный резерв).
+
+### Реализовано в `lab100/providers/`
+
+| Файл | Провайдер | Компетенции | Расход |
+|---|---|---|---|
+| `firecrawl.py` | Firecrawl (REST v2) | web-search, deep-research, scrape | кредиты |
+| `exa.py` | Exa (REST) | web-search, deep-research, scrape | кредиты |
+| `local_browser.py` | local-browser (headless Edge/Chrome) | web-search, deep-research, scrape | 0 |
+| `plain_http.py` | plain-http (без браузера) | web-search, scrape | 0 |
+| `yandex_search.py` | Yandex Search API (REST v2) | web-search | 1 за запрос |
+| `ollama.py` | Ollama 3b/8b | answer, code | 0 |
+| `gemini.py` | Gemini | answer, code, vision | токены |
+| `docker_agent.py` | Docker Agent (Гордон) | answer, code | 0 |
+
+### Yandex Search API: особенности подключения
+
+- `POST https://searchapi.api.cloud.yandex.net/v2/web/search`; тело — `query`
+  (`searchType`, `queryText`, `page`), `groupSpec` (`GROUP_MODE_FLAT`,
+  `groupsOnPage`, `docsInGroup`), `maxPassages`, `folderId`, `responseFormat`.
+- Ответ `200`: `{"rawData": base64(XML)}` — XML разбирается `xml.etree.ElementTree`,
+  документы берутся из `<response><results><grouping><group><doc>`, дедупликация по URL.
+- Авторизация: `Authorization: Api-Key <KEY>` (кабинет) либо `Bearer <IAM-токен>`
+  (сервисный аккаунт); `folderId` обязателен для сервисного аккаунта.
+- Адаптер не умеет скрейпинг → `capabilities = ["web-search"]`, `scrape()` бросает
+  `AdapterError`, поэтому в каскаде скрейпинга агент не участвует.
+- Валидация до сети: запрос ≤ 400 символов и ≤ 40 слов, `groupsOnPage` ограничен 100.
+- Ошибки HTTP 400/401/403/429/сетевые → `AdapterError` → cooldown 10 минут и каскад
+  на следующего провайдера; ключ в текст ошибок не попадает.
+- Платный сервис: тарификация по числу запросов, поэтому `priority = 15` (последний
+  в поисковом каскаде) и месячная квота-предохранитель 500 запросов.
+
 
 ## Принципы
 

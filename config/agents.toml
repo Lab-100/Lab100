@@ -30,6 +30,19 @@ kind = "search"
 capabilities = ["web-search", "scrape"]
 priority = 20
 
+# Yandex Search API (платный, тарификация по запросам) — только веб-поиск по базе
+# Яндекса, сильный источник по РУ-интернету. Ключ: YANDEX_SEARCH_API_KEY
+# (или YANDEX_SEARCH_IAM_TOKEN для сервисного аккаунта), folderId: YANDEX_SEARCH_FOLDER_ID.
+# Ставится последним: без ключа исключается при старте, квота ограничивает расход.
+[provider.yandex-search]
+kind = "search"
+folder_id = ""
+search_type = "SEARCH_TYPE_RU"    # RU | COM | TR | KK | BE | UZ
+family_mode = "FAMILY_MODE_MODERATE"
+max_passages = 2
+capabilities = ["web-search"]
+priority = 15
+
 [provider.ollama]
 kind = "llm"
 base_url = "http://127.0.0.1:11434"
@@ -88,6 +101,14 @@ window = "forever"
 
 [quota.plain-http]
 window = "forever"
+
+# Yandex Search API: тарификация по числу запросов, 10 000 синхронных запросов в час.
+# Месячный предохранитель в пуле: не даём израсходовать больше 500 запросов за окно
+# (при reserve_portions агент уходит в «пустые», когда остаток < 10% окна).
+[quota.yandex-search]
+window = "month"
+limit = 500
+reserve_portions = 0.1
 
 [quota.ollama]
 window = "forever"

@@ -8,6 +8,7 @@ from .local_browser import LocalBrowserSearch
 from .ollama import OllamaLLM
 from .gemini import GeminiLLM
 from .plain_http import PlainHttpScrape
+from .yandex_search import YandexSearch
 
 
 def build_search_adapter(name: str, config: dict) -> SearchAdapter:
@@ -15,6 +16,15 @@ def build_search_adapter(name: str, config: dict) -> SearchAdapter:
         return ExaSearch(api_key=config.get("api_key"))
     if name.startswith("firecrawl"):
         return FirecrawlSearch(api_key=config.get("api_key"))
+    if name.startswith("yandex"):
+        return YandexSearch(
+            api_key=config.get("api_key"),
+            iam_token=config.get("iam_token"),
+            folder_id=config.get("folder_id"),
+            search_type=config.get("search_type", "SEARCH_TYPE_RU"),
+            family_mode=config.get("family_mode", "FAMILY_MODE_MODERATE"),
+            max_passages=int(config.get("max_passages", 2)),
+        )
     if name.startswith("local-browser"):
         return LocalBrowserSearch(
             base_url=config.get("base_url"),
@@ -50,6 +60,7 @@ __all__ = [
     "FirecrawlSearch",
     "LocalBrowserSearch",
     "PlainHttpScrape",
+    "YandexSearch",
     "OllamaLLM",
     "GeminiLLM",
     "DockerAgentLLM",
