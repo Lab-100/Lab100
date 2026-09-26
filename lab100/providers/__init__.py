@@ -31,7 +31,7 @@ def build_llm_adapter(name: str, config: dict) -> LLMAdapter:
         return OllamaLLM(base_url=config.get("base_url"), default_model=config.get("model"))
     if name.startswith("gemini"):
         return GeminiLLM(api_key=config.get("api_key"), default_model=config.get("model"))
-    if name.startswith("docker-agent"):
+    if name.startswith("docker-"):
         return DockerAgentLLM(
             agent_file=config.get("agent_file"),
             model=config.get("model", "local"),

@@ -275,9 +275,13 @@ def test_docker_agent_in_config_and_pool_build():
     assert "docker-agent" in cfg["provider"]
     assert cfg["provider"]["docker-agent"]["kind"] == "llm"
     assert cfg["quota"]["docker-agent"]["window"] == "forever"
+    assert "docker-cloud" in cfg["provider"]
+    assert cfg["provider"]["docker-cloud"]["model"] == "groq/llama-3.3-70b-versatile"
+    assert cfg["quota"]["docker-cloud"]["window"] == "forever"
 
     orch = build("config/agents.toml")
     # адаптер присутствует в пуле ИЛИ корректно исключён (плагин docker agent может быть не установлен):
     names = {a.name for a in orch.registry.by_kind("llm")}
     notes = getattr(orch, "_notes", [])
     assert "docker-agent" in names or any("docker-agent" in n for n in notes)
+    assert "docker-cloud" in names or any("docker-cloud" in n for n in notes)

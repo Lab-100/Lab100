@@ -64,6 +64,17 @@ capabilities = ["answer", "code"]
 priority = 10                 # ниже ollama-8b: медленный резерв без ключей
 timeout_s = 600
 
+# docker-cloud — облачные модели ЧЕРЕЗ docker agent (ключ провайдера берётся из
+# env). Дефолт — groq/llama-3.3-70b-versatile (бесплатный rate-limit tier);
+# Docker-каталог (docker agent models) поддерживает и платных: xai, anthropic, ...
+[provider.docker-cloud]
+kind = "llm"
+agent_file = ""
+model = "groq/llama-3.3-70b-versatile"
+capabilities = ["answer", "code"]
+priority = 15
+timeout_s = 600
+
 # Квоты: у Firecrawl — кредиты, у LLM — токены; без limit — неограничено.
 [quota.firecrawl]
 window = "month"
@@ -86,6 +97,9 @@ window = "day"
 limit = 150000
 
 [quota.docker-agent]
+window = "forever"
+
+[quota.docker-cloud]
 window = "forever"
 
 [pool]
