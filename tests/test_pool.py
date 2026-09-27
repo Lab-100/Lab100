@@ -285,3 +285,36 @@ def test_docker_agent_in_config_and_pool_build():
     notes = getattr(orch, "_notes", [])
     assert "docker-agent" in names or any("docker-agent" in n for n in notes)
     assert "docker-cloud" in names or any("docker-cloud" in n for n in notes)
+
+
+# ── поиск конфига (важно для установленного пакета) ─────────────────────────
+def test_load_config_uses_explicit_path(tmp_path):
+    from lab100.cli import load_config
+
+    cfg_file = tmp_path / "custom.toml"
+    cfg_file.write_text('[provider.explicit]\nkind = "search"\n', encoding="utf-8")
+    cfg = load_config(str(cfg_file))
+    assert cfg["provider"]["explicit"]["kind"] == "search"
+
+
+def test_load_config_falls_back_to_working_directory(tmp_path, monkeypatch):
+    """Явного пути нет — конфиг берётся из config/agents.toml рабочего каталога."""
+    from lab100.cli import load_config
+
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "agents.toml").write_text(
+        '[provider.from-cwd]\nkind = "search"\n', encoding="utf-8"
+    )
+    monkeypatch.chdir(tmp_path)
+    cfg = load_config("")
+    assert cfg["provider"]["from-cwd"]["kind"] == "search"
+
+
+def test_load_config_missing_returns_empty(tmp_path, monkeypatch):
+    """Нигде нет конфига (например, пакет установлен, профиль не настроен)."""
+    from lab100.cli import load_config
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "empty-local"))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "empty-roaming"))
+    assert load_config("") == {}

@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lab100"
+description = "Пул бесплатных ИИ-агентов: роутинг по компетенциям и токенам для веб-поиска"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Lab-100" }]
+keywords = ["search", "ai", "agents", "router", "firecrawl", "yandex", "ollama"]
+dynamic = ["version"]
+dependencies = []
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Natural Language :: Russian",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: Indexing/Search",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://github.com/Lab-100/Lab100"
+Repository = "https://github.com/Lab-100/Lab100"
+Issues = "https://github.com/Lab-100/Lab100/issues"
+
+[project.scripts]
+lab100 = "lab100.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "lab100.__version__" }
+
+[tool.setuptools]
+packages = ["lab100", "lab100.providers"]
+
+[tool.setuptools.package-data]
+lab100 = ["py.typed"]

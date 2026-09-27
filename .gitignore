@@ -5,5 +5,7 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+build/
+dist/
 state.json
 .env

@@ -24,6 +24,22 @@ from .token_tracker import TokenTracker
 DEFAULT_CONFIG = "config/agents.toml"
 
 
+def _config_candidates() -> list[str]:
+    """Пути поиска конфига: рабочий каталог → профиль пользователя.
+
+    Нужно, чтобы установленный пакет (`pip install .`) находил настройки,
+    а не только запускался из клона репозитория.
+    """
+    paths = [DEFAULT_CONFIG]
+    local = os.environ.get("LOCALAPPDATA") or os.environ.get("XDG_CONFIG_HOME")
+    roaming = os.environ.get("APPDATA")
+    if local:
+        paths.append(os.path.join(local, "lab100", "agents.toml"))
+    if roaming:
+        paths.append(os.path.join(roaming, "lab100", "agents.toml"))
+    return paths
+
+
 def _utf8() -> None:
     if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
         try:
@@ -35,14 +51,17 @@ def _utf8() -> None:
 
 
 def load_config(path: str) -> dict:
-    try:
+    if path and os.path.isfile(path):
         with open(path, "rb") as fh:
             return tomllib.load(fh)
-    except FileNotFoundError:
-        return {}
+    for candidate in _config_candidates():
+        if os.path.isfile(candidate):
+            with open(candidate, "rb") as fh:
+                return tomllib.load(fh)
+    return {}
 
 
-def build(path: str = DEFAULT_CONFIG) -> PoolOrchestrator:
+def build(path: str = "") -> PoolOrchestrator:
     cfg = load_config(path)
     providers = cfg.get("provider", {})
     quota_cfg = cfg.get("quota", {})
@@ -152,7 +171,13 @@ def cmd_scrape(orch: PoolOrchestrator, args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     _utf8()
     parser = argparse.ArgumentParser(prog="lab100", description="Пул бесплатных ИИ-агентов")
-    parser.add_argument("--config", default=DEFAULT_CONFIG, help="путь к agents.toml")
+    parser.add_argument(
+        "--config",
+        default="",
+        help="путь к agents.toml (по умолчанию: config/agents.toml, "
+             "затем %%LOCALAPPDATA%%\\lab100\\agents.toml)",
+    )
+
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("status", help="состояние пула и квот").set_defaults(func=cmd_status)
