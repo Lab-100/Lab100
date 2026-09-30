@@ -43,6 +43,9 @@
 ```
 Lab100/
 ├── README.md                 # это резюме
+├── CHANGELOG.md              # журнал изменений (версии 0.x.y)
+├── .github/workflows/
+│   └── tests.yml             # непрерывная проверка тестов (push в main и pull request)
 ├── lab100/
 │   ├── __init__.py
 │   ├── registry.py           # реестр агентов по компетенциям
@@ -142,6 +145,18 @@ $env:YANDEX_SEARCH_IAM_TOKEN = "t1...."
 
 Зависимости: только стандартная библиотека Python 3.10+ (`tomllib`, `urllib`).
 `pytest` — только для тестов.
+
+## Непрерывная проверка тестов (CI)
+
+Workflow `.github/workflows/tests.yml` запускает тесты при push в `main`
+и при pull request в `main`, на Python 3.10/3.11/3.12 (`requires-python >=3.10`).
+В лог выводится `python -m lab100.cli providers` — какие адаптеры пула поднялись,
+а какие отключены и почему (нет ключа или недоступен локальный сервис).
+
+Известное ограничение: `tests/test_pool.py::test_config_has_case1_local_providers`
+требует секрет `FIRECRAWL_API_KEY` (иначе `firecrawl` не попадает в пул), поэтому
+без него тест честно падает. Падение намеренно не скрывается и не подменяется
+фиктивным прохождением.
 
 ## Рабочий цикл
 
