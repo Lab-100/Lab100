@@ -47,10 +47,11 @@ jobs:
         continue-on-error: true
         run: python -m lab100.cli providers
 
-      - name: Известное ограничение окружения
-        # Падение теста не маскируется: аннотация нужна, чтобы была видна причина.
+      - name: Известные ограничения окружения
+        # Падения тестов не маскируются: аннотации нужны, чтобы были видны причины.
         run: |
           echo "::warning::tests/test_pool.py::test_config_has_case1_local_providers требует секрет FIRECRAWL_API_KEY. Без него провайдер firecrawl не попадает в пул и тест честно падает — это не скрывается и не подменяется."
+          echo "::warning::Модуль tomllib есть только в Python 3.11+. Поэтому на 3.10 падают 9 тестов (ModuleNotFoundError: No module named 'tomllib'), хотя pyproject заявляет requires-python >=3.10. Расхождение не скрывается: нужно либо сузить requires-python до >=3.11, либо обеспечить импорт tomllib через tomli на 3.10."
 
       - name: Тесты (pytest)
         run: python -m pytest tests -v --tb=short
