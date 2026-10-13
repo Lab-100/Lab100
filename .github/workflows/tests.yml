@@ -27,6 +27,7 @@ jobs:
       # Только ссылки на секреты репозитория, значения не выводятся в лог.
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+      FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
 
     steps:
       - name: Получить код
@@ -51,7 +52,7 @@ jobs:
       - name: Известные ограничения окружения
         # Падения тестов не маскируются: аннотации нужны, чтобы были видны причины.
         run: |
-          echo "::warning::tests/test_pool.py::test_config_has_case1_local_providers требует секрет FIRECRAWL_API_KEY. Без него провайдер firecrawl не попадает в пул и тест честно падает — это не скрывается и не подменяется."
+          echo "::warning::Пул частично зависит от секретов репозитория (GEMINI_API_KEY, EXA_API_KEY, FIRECRAWL_API_KEY). Если секрет отсутствует, соответствующий провайдер не попадает в пул и тест честно падает — это не скрывается и не подменяется."
 
       - name: Тесты (pytest)
         run: python -m pytest tests -v --tb=short
