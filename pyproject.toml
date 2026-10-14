@@ -29,8 +29,13 @@ Homepage = "https://github.com/Lab-100/Lab100"
 Repository = "https://github.com/Lab-100/Lab100"
 Issues = "https://github.com/Lab-100/Lab100/issues"
 
+[project.optional-dependencies]
+# MCP-сервер (интеграция с opencode): инструменты lab100_search/scrape/ask/status.
+mcp = ["mcp>=1.0"]
+
 [project.scripts]
 lab100 = "lab100.cli:main"
+lab100-mcp = "lab100.mcp_server:main"
 
 [tool.setuptools.dynamic]
 version = { attr = "lab100.__version__" }

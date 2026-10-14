@@ -53,6 +53,7 @@ Lab100/
 │   ├── router.py             # выбор агента по компетенциям и квоте, fallback-каскад
 │   ├── orchestrator.py       # конвейер поиск/ответ/код/скрейпинг
 │   ├── cli.py                # командный интерфейс (status/ask/search/chat/scrape)
+│   ├── mcp_server.py         # MCP-сервер для opencode (единая точка подмены поиска)
 │   └── providers/
 │       ├── base.py           # интерфейсы SearchAdapter / LLMAdapter
 │       ├── firecrawl.py      # веб-поиск и скрейпинг (REST v2)
@@ -66,8 +67,45 @@ Lab100/
 │   └── agents.toml           # конфигурация агентов, провайдеров и квот
 └── tests/
     ├── test_pool.py          # тесты на моках (без сети)
+    ├── test_mcp_server.py    # тесты MCP-сервера (без сети)
     └── test_yandex_search.py # тесты Yandex Search API (сеть замокана)
 ```
+
+## MCP-сервер (интеграция с opencode)
+
+Пул Lab100 отдаётся ИИ-агентам opencode как MCP-сервер — единая точка подмены
+поиска: вместо нескольких поисковых MCP подключается один `lab100`, а ротация
+провайдеров (каскад с cooldown при 429/403/сети) работает внутри. По смыслу это
+то же, что агрегатор `multitool` для моделей.
+
+Запуск (транспорт stdio):
+
+```powershell
+python -m lab100.mcp_server --config config/agents.toml   # из клона
+lab100-mcp                                                # после pip install .[mcp]
+```
+
+Инструменты:
+
+- `lab100_search(query, limit=5, capability="web-search")` — веб-поиск с ротацией;
+- `lab100_scrape(url)` — markdown по URL;
+- `lab100_ask(question, limit=5, capability="answer")` — ответ LLM по контексту;
+- `lab100_status()` — состояние пула: агенты, остаток квоты, отключённые адаптеры.
+
+Подключение в `opencode.jsonc` (секция `mcp`):
+
+```jsonc
+"lab100": {
+  "type": "local",
+  "command": ["lab100-mcp", "--config", "C:\\path\\to\\Lab100\\config\\agents.toml"],
+  "enabled": true,
+  "timeout": 120000
+}
+```
+
+Для платных источников ключи берутся из окружения MCP-процесса:
+`FIRECRAWL_API_KEY`, `EXA_API_KEY`, `YANDEX_SEARCH_API_KEY`, `GEMINI_API_KEY`.
+Без ключей пул сам опускается на бесплатные адаптеры (`plain-http`, `local-browser`).
 
 ## Установка
 
@@ -80,7 +118,7 @@ pip install .
 pip install -e .   # режим разработки: правки в коде применяются сразу
 ```
 
-Зависимостей нет — только стандартная библиотека Python 3.10+. Все ключи
+Зависимостей нет — только стандартная библиотека Python 3.11+. Все ключи
 провайдеров берутся из переменных окружения, в репозитории их нет.
 
 ## Быстрый старт (рабочий вариант)
@@ -143,13 +181,13 @@ $env:YANDEX_SEARCH_IAM_TOKEN = "t1...."
 у которого квота на исходе или ключ в cooldown после 429, автоматически пропускается;
 пул переключается на следующего кандидата по приоритету.
 
-Зависимости: только стандартная библиотека Python 3.10+ (`tomllib`, `urllib`).
+Зависимости: только стандартная библиотека Python 3.11+ (`tomllib`, `urllib`).
 `pytest` — только для тестов.
 
 ## Непрерывная проверка тестов (CI)
 
 Workflow `.github/workflows/tests.yml` запускает тесты при push в `main`
-и при pull request в `main`, на Python 3.10/3.11/3.12 (`requires-python >=3.10`).
+и при pull request в `main`, на Python 3.11/3.12 (`requires-python >=3.11`).
 В лог выводится `python -m lab100.cli providers` — какие адаптеры пула поднялись,
 а какие отключены и почему (нет ключа или недоступен локальный сервис).
 
@@ -158,10 +196,9 @@ Workflow `.github/workflows/tests.yml` запускает тесты при push
 - `tests/test_pool.py::test_config_has_case1_local_providers` требует секрет
   `FIRECRAWL_API_KEY` (иначе `firecrawl` не попадает в пул), поэтому без него
   тест честно падает.
-- `pyproject.toml` заявляет `requires-python >=3.10`, но код импортирует
-  `tomllib`, а он есть в стандартной библиотеке только с Python 3.11. Фактический
-  минимум — 3.11; на 3.10 в CI падают 9 тестов. Нужно либо сузить
-  `requires-python` до `>=3.11`, либо обеспечить импорт `tomllib` через `tomli`.
+- `tests/test_pool.py::test_config_loads_and_build` требует LLM-агента в пуле
+  (локальная Ollama, Gemini с ключом или docker-agent), иначе падает на проверке
+  `len(by_kind("llm")) >= 1`. В CI (ubuntu с Docker) проходит.
 
 ## Рабочий цикл
 
