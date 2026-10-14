@@ -31,7 +31,8 @@ Issues = "https://github.com/Lab-100/Lab100/issues"
 
 [project.optional-dependencies]
 # MCP-сервер (интеграция с opencode): инструменты lab100_search/scrape/ask/status.
-mcp = ["mcp>=1.0"]
+# Ограничение <2: в mcp 2.x FastMCP переименован в MCPServer и изменён bootstrap.
+mcp = ["mcp>=1.0,<2"]
 
 [project.scripts]
 lab100 = "lab100.cli:main"
