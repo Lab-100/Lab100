@@ -38,10 +38,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Установить pytest
+      - name: Установить pytest и mcp
+        # mcp нужен тестам MCP-сервера (tests/test_mcp_server.py); extras
+        # [project.optional-dependencies] mcp. Без него сбор тестов падает
+        # на импорте lab100.mcp_server.
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest
+          python -m pip install pytest "mcp>=1.0"
 
       - name: Диагностика пула провайдеров
         # Информационный шаг: показывает, какие адаптеры поднялись, а какие
