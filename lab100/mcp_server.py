@@ -151,7 +151,14 @@ def lab100_status() -> str:
 
 def main(argv: list[str] | None = None) -> None:
     global _config_path
-    parser = argparse.ArgumentParser(prog="lab100-mcp", description="MCP-сервер пула Lab100 (stdio)")
+    # UTF-8 до разбора аргументов: иначе --help печатается в кодировке консоли
+    # (cp1251/cp866) и кириллица в справке выглядит «кракозябрами». Перенастройка
+    # потоков безопасна для stdio-протокола: меняется только кодировка уже
+    # существующих потоков, лишнего в stdout не пишется.
+    _utf8()
+    parser = argparse.ArgumentParser(
+        prog="lab100-mcp", description="MCP-сервер пула Lab100 (stdio)"
+    )
     parser.add_argument(
         "--config",
         default="",
@@ -159,7 +166,6 @@ def main(argv: list[str] | None = None) -> None:
              "и %%LOCALAPPDATA%%\\lab100\\agents.toml)",
     )
     args = parser.parse_args(argv)
-    _utf8()
     _config_path = args.config
     mcp.run()  # stdio — всё общение идёт через протокол MCP, stdout не трогаем
 

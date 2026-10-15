@@ -5,6 +5,8 @@
 """
 
 import asyncio
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -82,3 +84,22 @@ def test_tools_registered():
     tools = asyncio.run(mcp_server.mcp.list_tools())
     names = {getattr(tool, "name", None) for tool in tools}
     assert names == {"lab100_search", "lab100_scrape", "lab100_ask", "lab100_status"}
+
+
+# ── кодировка вывода ─────────────────────────────────────────────────────────
+def test_help_is_utf8_even_in_cp1251():
+    """Справка печатается в UTF-8 независимо от кодировки консоли.
+
+    Регресс: раньше _utf8() вызывалась ПОСЛЕ parse_args, поэтому --help уходил
+    в stdout в кодировке консоли (cp1251/cp866) и кириллица ломалась.
+    """
+    env = dict(os.environ)
+    env["PYTHONIOENCODING"] = "cp1251"
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parent.parent)
+    proc = subprocess.run(
+        [sys.executable, "-m", "lab100.mcp_server", "--help"],
+        capture_output=True,
+        env=env,
+    )
+    text = proc.stdout.decode("utf-8")  # должно декодироваться строго как UTF-8
+    assert "MCP-сервер" in text
