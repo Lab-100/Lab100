@@ -20,7 +20,7 @@ import urllib.request
 
 from .base import AdapterError, SearchAdapter, SearchResult
 
-DRIVER_DIR = r"C:\Scripts\tools\browsertool"
+DRIVER_DIR = r"C:\Users\TEKK\.devstation\tools\registry\browsertool\0.1.0"
 DRIVER_URL = "http://127.0.0.1:8123"
 
 

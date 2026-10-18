@@ -23,7 +23,7 @@ base_url = "http://127.0.0.1:8123"
 engine = "wiby"                # wiby | bing | duckduckgo | wikipedia
 auto_start = true
 capabilities = ["web-search", "deep-research", "scrape"]
-priority = 30
+priority = 48                 # выше exa (45), ниже firecrawl (50): интерактив и JS-рендер — браузером
 
 [provider.plain-http]
 kind = "search"
