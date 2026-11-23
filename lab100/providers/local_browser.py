@@ -20,7 +20,27 @@ import urllib.request
 
 from .base import AdapterError, SearchAdapter, SearchResult
 
-DRIVER_DIR = r"C:\Users\TEKK\.devstation\tools\registry\browsertool\0.1.0"
+def _find_driver_dir() -> str:
+    """Каталог driver.mjs: переменная окружения → профиль пользователя → эта машина.
+
+    Путь к драйверу не должен быть привязан к имени учётной записи: на машине
+    разработчика он лежит в ~/.devstation/..., на рабочей — в C:\\Scripts\\tools.
+    """
+    candidates = [
+        os.environ.get("BROWSERTOOL_DIR") or os.environ.get("LAB100_BROWSERTOOL_DIR") or "",
+        os.path.join(
+            os.environ.get("USERPROFILE", ""),
+            ".devstation", "tools", "registry", "browsertool", "0.1.0",
+        ),
+        r"C:\Scripts\tools\browsertool",
+    ]
+    for path in candidates:
+        if path and os.path.isfile(os.path.join(path, "driver.mjs")):
+            return path
+    return next((p for p in candidates if p), r"C:\Scripts\tools\browsertool")
+
+
+DRIVER_DIR = _find_driver_dir()
 DRIVER_URL = "http://127.0.0.1:8123"
 
 

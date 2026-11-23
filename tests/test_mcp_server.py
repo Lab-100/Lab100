@@ -10,7 +10,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# MCP — опциональная зависимость (extras `mcp`). Без неё набор тестов сервера
+# пропускается, а не роняет весь прогон: Self-contained CLI-тесты остаются
+# рабочими в минимальном окружении. CI и разработчики ставят `pip install -e .[mcp]`.
+pytest.importorskip("mcp", reason="нужен extras `mcp`: pip install -e '.[mcp]'")
 
 from lab100 import mcp_server  # noqa: E402
 from lab100.orchestrator import PoolOrchestrator, TaskResult  # noqa: E402
